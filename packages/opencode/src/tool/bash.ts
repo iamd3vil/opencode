@@ -143,6 +143,7 @@ export const BashTool = Tool.define("bash", {
           command: params.command,
           patterns,
         },
+        acpConnection: ctx.extra?.acpConnection,
       })
     }
 

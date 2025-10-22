@@ -37,6 +37,7 @@ export const WebFetchTool = Tool.define("webfetch", {
           format: params.format,
           timeout: params.timeout,
         },
+        acpConnection: ctx.extra?.acpConnection,
       })
 
     const timeout = Math.min((params.timeout ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)

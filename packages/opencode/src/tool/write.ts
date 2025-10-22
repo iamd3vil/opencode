@@ -40,6 +40,7 @@ export const WriteTool = Tool.define("write", {
           content: params.content,
           exists,
         },
+        acpConnection: ctx.extra?.acpConnection,
       })
 
     await Bun.write(filepath, params.content)

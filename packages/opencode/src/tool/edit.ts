@@ -58,6 +58,7 @@ export const EditTool = Tool.define("edit", {
               filePath,
               diff,
             },
+            acpConnection: ctx.extra?.acpConnection,
           })
         }
         await Bun.write(filePath, params.newString)
@@ -87,6 +88,7 @@ export const EditTool = Tool.define("edit", {
             filePath,
             diff,
           },
+          acpConnection: ctx.extra?.acpConnection,
         })
       }
 
