@@ -34,6 +34,13 @@ export class ACPSessionManager {
     }
   }
 
+  setModel(sessionId: string, providerID: string, modelID: string): void {
+    const session = this.sessions.get(sessionId)
+    if (session) {
+      session.model = { providerID, modelID }
+    }
+  }
+
   async remove(sessionId: string): Promise<void> {
     const state = this.sessions.get(sessionId)
     if (!state) return

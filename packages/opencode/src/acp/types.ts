@@ -9,6 +9,10 @@ export interface ACPSessionState {
   openCodeSessionId: string
   createdAt: Date
   mode: SessionModeId
+  model?: {
+    providerID: string
+    modelID: string
+  }
 }
 
 export interface ACPConfig {

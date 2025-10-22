@@ -14,6 +14,8 @@ import type {
   PromptResponse,
   SetSessionModeRequest,
   SetSessionModeResponse,
+  SetSessionModelRequest,
+  SetSessionModelResponse,
 } from "@agentclientprotocol/sdk"
 import { Log } from "../util/log"
 import { ACPSessionManager } from "./session"
@@ -59,6 +61,16 @@ export class OpenCodeAgent implements Agent {
 
     const session = await this.sessionManager.create(params.cwd, params.mcpServers)
 
+    const model = this.config.defaultModel || (await Provider.defaultModel())
+    const providers = await Provider.list()
+    const availableModels = Object.entries(providers).flatMap(([, provider]) =>
+      Object.entries(provider.info.models).map(([, modelInfo]) => ({
+        modelId: `${provider.info.id}/${modelInfo.id}`,
+        name: `${provider.info.name} - ${modelInfo.name}`,
+        description: modelInfo.reasoning ? "Reasoning model" : undefined,
+      })),
+    )
+
     return {
       sessionId: session.id,
       modes: {
@@ -80,6 +92,10 @@ export class OpenCodeAgent implements Agent {
             description: "Only allows read operations, blocks all edits and commands",
           },
         ],
+      },
+      models: {
+        currentModelId: `${model.providerID}/${model.modelID}`,
+        availableModels,
       },
       _meta: {},
     }
@@ -106,7 +122,7 @@ export class OpenCodeAgent implements Agent {
       throw new Error(`Session not found: ${params.sessionId}`)
     }
 
-    const model = this.config.defaultModel || (await Provider.defaultModel())
+    const model = acpSession.model || this.config.defaultModel || (await Provider.defaultModel())
 
     const parts = params.prompt.map((content) => {
       if (content.type === "text") {
@@ -185,6 +201,35 @@ export class OpenCodeAgent implements Agent {
         currentModeId: params.modeId,
       },
     })
+
+    return {}
+  }
+
+  async setSessionModel(params: SetSessionModelRequest): Promise<SetSessionModelResponse> {
+    this.log.info("setSessionModel", { sessionId: params.sessionId, modelId: params.modelId })
+
+    const session = this.sessionManager.get(params.sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${params.sessionId}`)
+    }
+
+    const [providerID, ...modelParts] = params.modelId.split("/")
+    const modelID = modelParts.join("/")
+
+    if (!providerID || !modelID) {
+      throw new Error(`Invalid model ID format: ${params.modelId}. Expected format: provider/model`)
+    }
+
+    const provider = await Provider.getProvider(providerID)
+    if (!provider) {
+      throw new Error(`Provider not found: ${providerID}`)
+    }
+
+    if (!provider.info.models[modelID]) {
+      throw new Error(`Model not found: ${modelID} in provider ${providerID}`)
+    }
+
+    this.sessionManager.setModel(params.sessionId, providerID, modelID)
 
     return {}
   }
