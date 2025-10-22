@@ -12,6 +12,8 @@ import type {
   NewSessionResponse,
   PromptRequest,
   PromptResponse,
+  SetSessionModeRequest,
+  SetSessionModeResponse,
 } from "@agentclientprotocol/sdk"
 import { Log } from "../util/log"
 import { ACPSessionManager } from "./session"
@@ -59,6 +61,26 @@ export class OpenCodeAgent implements Agent {
 
     return {
       sessionId: session.id,
+      modes: {
+        currentModeId: session.mode,
+        availableModes: [
+          {
+            id: "ask",
+            name: "Always Ask",
+            description: "Prompts for permission before each tool use",
+          },
+          {
+            id: "approve_all",
+            name: "Approve All",
+            description: "Automatically approves all tool uses",
+          },
+          {
+            id: "read_only",
+            name: "Read Only",
+            description: "Only allows read operations, blocks all edits and commands",
+          },
+        ],
+      },
       _meta: {},
     }
   }
@@ -121,6 +143,7 @@ export class OpenCodeAgent implements Agent {
       acpConnection: {
         connection: this.connection,
         sessionId: params.sessionId,
+        mode: acpSession.mode,
       },
     })
 
@@ -137,5 +160,34 @@ export class OpenCodeAgent implements Agent {
 
   async cancel(params: CancelNotification): Promise<void> {
     this.log.info("cancel", { sessionId: params.sessionId })
+  }
+
+  async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse> {
+    this.log.info("setSessionMode", { sessionId: params.sessionId, modeId: params.modeId })
+
+    const session = this.sessionManager.get(params.sessionId)
+    if (!session) {
+      throw new Error(`Session not found: ${params.sessionId}`)
+    }
+
+    const validModes = ["ask", "approve_all", "read_only"]
+    if (!validModes.includes(params.modeId)) {
+      throw new Error(`Invalid mode: ${params.modeId}`)
+    }
+
+    this.sessionManager.setMode(params.sessionId, params.modeId as any)
+
+    // Notify client of mode change
+    await this.connection.sessionUpdate({
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "current_mode_update",
+        currentModeId: params.modeId,
+      },
+    })
+
+    return {
+      _meta: {},
+    }
   }
 }

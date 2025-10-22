@@ -85,6 +85,10 @@ export namespace Permission {
     sessionID: Info["sessionID"]
     messageID: Info["messageID"]
     metadata: Info["metadata"]
+    acpConnection?: {
+      connection: any
+      sessionId: string
+    }
   }) {
     const { pending, approved } = state()
     log.info("asking", {
@@ -92,6 +96,7 @@ export namespace Permission {
       messageID: input.messageID,
       toolCallID: input.callID,
       pattern: input.pattern,
+      acpMode: !!input.acpConnection,
     })
     const approvedForSession = approved[input.sessionID] || {}
     const keys = toKeys(input.pattern, input.type)
@@ -119,6 +124,86 @@ export namespace Permission {
         throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
       case "allow":
         return
+    }
+
+    if (input.acpConnection) {
+      const mode = input.acpConnection.mode || "ask"
+      const isReadOnly = mode === "read_only"
+      const isWriteOperation = ["edit", "write", "bash"].includes(input.type)
+
+      if (isReadOnly && isWriteOperation) {
+        throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
+      }
+
+      if (mode === "approve_all") {
+        return
+      }
+
+      try {
+        const optionOnceId = `${info.id}-once`
+        const optionAlwaysId = `${info.id}-always`
+        const optionRejectId = `${info.id}-reject`
+
+        const response = await input.acpConnection.connection.requestPermission({
+          sessionId: input.acpConnection.sessionId,
+          toolCall: {
+            toolCallId: input.callID,
+            title: input.title,
+          },
+          options: [
+            {
+              optionId: optionOnceId,
+              name: "Allow Once",
+              kind: "allow_once",
+            },
+            {
+              optionId: optionAlwaysId,
+              name: "Always Allow",
+              kind: "allow_always",
+            },
+            {
+              optionId: optionRejectId,
+              name: "Reject",
+              kind: "reject_once",
+            },
+          ],
+        })
+
+        if (!response || !response.outcome) {
+          log.error("Invalid response from ACP requestPermission", { response })
+          throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
+        }
+
+        if (
+          response.outcome.outcome === "cancelled" ||
+          (response.outcome.outcome === "selected" && response.outcome.optionId === optionRejectId)
+        ) {
+          throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
+        }
+
+        if (response.outcome.outcome === "selected") {
+          if (response.outcome.optionId === optionAlwaysId) {
+            approved[input.sessionID] = approved[input.sessionID] || {}
+            const approveKeys = toKeys(info.pattern, info.type)
+            for (const k of approveKeys) {
+              approved[input.sessionID][k] = true
+            }
+          }
+          return
+        }
+
+        log.warn("Unexpected response outcome, rejecting", { outcome: response.outcome })
+        throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
+      } catch (error) {
+        if (error instanceof RejectedError) {
+          throw error
+        }
+        log.error("ACP permission request failed with error", {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+        throw new RejectedError(info.sessionID, info.id, info.callID, info.metadata)
+      }
     }
 
     pending[input.sessionID] = pending[input.sessionID] || {}

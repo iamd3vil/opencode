@@ -1,7 +1,7 @@
 import type { McpServer } from "@agentclientprotocol/sdk"
 import { Identifier } from "../id/id"
 import { Session } from "../session"
-import type { ACPSessionState } from "./types"
+import type { ACPSessionState, SessionModeId } from "./types"
 
 export class ACPSessionManager {
   private sessions = new Map<string, ACPSessionState>()
@@ -16,6 +16,7 @@ export class ACPSessionManager {
       mcpServers,
       openCodeSessionId: openCodeSession.id,
       createdAt: new Date(),
+      mode: "ask",
     }
 
     this.sessions.set(sessionId, state)
@@ -24,6 +25,13 @@ export class ACPSessionManager {
 
   get(sessionId: string): ACPSessionState | undefined {
     return this.sessions.get(sessionId)
+  }
+
+  setMode(sessionId: string, mode: SessionModeId): void {
+    const session = this.sessions.get(sessionId)
+    if (session) {
+      session.mode = mode
+    }
   }
 
   async remove(sessionId: string): Promise<void> {
@@ -52,6 +60,7 @@ export class ACPSessionManager {
       mcpServers,
       openCodeSessionId: openCodeSession.id,
       createdAt: new Date(),
+      mode: "ask",
     }
 
     this.sessions.set(sessionId, state)

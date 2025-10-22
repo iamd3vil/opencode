@@ -103,6 +103,7 @@ export namespace SessionPrompt {
       .object({
         connection: z.any(), // AgentSideConnection - using any to avoid circular deps
         sessionId: z.string(), // ACP session ID (different from opencode sessionID)
+        mode: z.enum(["ask", "approve_all", "read_only"]).optional(),
       })
       .optional(),
     parts: z.array(
@@ -193,6 +194,7 @@ export namespace SessionPrompt {
       providerID: model.providerID,
       tools: input.tools,
       processor,
+      acpConnection: input.acpConnection,
     })
 
     const params = await Plugin.trigger(
@@ -439,6 +441,10 @@ export namespace SessionPrompt {
     providerID: string
     tools?: Record<string, boolean>
     processor: Processor
+    acpConnection?: {
+      connection: any
+      sessionId: string
+    }
   }) {
     const tools: Record<string, AITool> = {}
     const enabledTools = pipe(
@@ -473,6 +479,7 @@ export namespace SessionPrompt {
             extra: {
               modelID: input.modelID,
               providerID: input.providerID,
+              acpConnection: input.acpConnection,
             },
             agent: input.agent.name,
             metadata: async (val) => {
@@ -1023,25 +1030,8 @@ export namespace SessionPrompt {
                 })
                 toolcalls[value.id] = part as MessageV2.ToolPart
 
-                // Notify ACP client of pending tool call
-                if (input.acpConnection) {
-                  await input.acpConnection.connection
-                    .sessionUpdate({
-                      sessionId: input.acpConnection.sessionId,
-                      update: {
-                        sessionUpdate: "tool_call",
-                        toolCallId: value.id,
-                        title: value.toolName,
-                        kind: determineToolKind(value.toolName),
-                        status: "pending",
-                        locations: [], // Will be populated when we have input
-                        rawInput: {},
-                      },
-                    })
-                    .catch((err: Error) => {
-                      log.error("failed to send tool pending to ACP", { error: err })
-                    })
-                }
+                // Don't notify ACP client yet - wait until tool-call event
+                // to avoid conflicts with permission requests
                 break
 
               case "tool-input-delta":
@@ -1068,20 +1058,24 @@ export namespace SessionPrompt {
                   toolcalls[value.toolCallId] = part as MessageV2.ToolPart
 
                   // Notify ACP client that tool is running
+                  // We send tool_call notification here (after permission is granted)
+                  // with status "in_progress" directly
                   if (input.acpConnection) {
                     await input.acpConnection.connection
                       .sessionUpdate({
                         sessionId: input.acpConnection.sessionId,
                         update: {
-                          sessionUpdate: "tool_call_update",
+                          sessionUpdate: "tool_call",
                           toolCallId: value.toolCallId,
+                          title: value.toolName,
+                          kind: determineToolKind(value.toolName),
                           status: "in_progress",
                           locations: extractLocations(value.toolName, value.input),
                           rawInput: value.input,
                         },
                       })
                       .catch((err: Error) => {
-                        log.error("failed to send tool in_progress to ACP", { error: err })
+                        log.error("failed to send tool_call to ACP", { error: err })
                       })
                   }
                 }

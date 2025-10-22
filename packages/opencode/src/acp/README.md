@@ -93,27 +93,43 @@ This implementation follows the ACP specification v1:
 ✅ **Client Capabilities**
 
 - File read/write operations
-- Permission requests
+- Permission requests (integrated with opencode's permission system)
 - Terminal support (stub for future)
+
+## Permission Handling
+
+When tools require user approval (configured via `opencode.json` with `permission: { edit: "ask", bash: "ask" }`), the ACP implementation automatically delegates permission requests to the client via the `requestPermission` method.
+
+The permission flow:
+
+1. Tool execution requires approval (e.g., edit, bash, write)
+2. OpenCode checks if ACP connection is active
+3. If ACP mode: Calls client's `requestPermission` with options (Allow Once, Always Allow, Reject)
+4. If not ACP mode: Uses Bus events for UI-based approval (desktop/TUI)
+5. Permission response is processed and tool execution continues or fails
+
+This ensures that ACP clients (like Avante.nvim, Zed) can properly prompt users for permission instead of tools hanging indefinitely.
 
 ## Current Limitations
 
 ### Not Yet Implemented
 
-1. **Streaming Responses** - Currently returns complete responses instead of streaming via `session/update` notifications
-2. **Tool Call Reporting** - Doesn't report tool execution progress
-3. **Session Modes** - No mode switching support yet
-4. **Authentication** - No actual auth implementation
-5. **Terminal Support** - Placeholder only
-6. **Session Persistence** - `session/load` doesn't restore actual conversation history
+1. **Session Modes** - No mode switching support yet
+2. **Authentication** - No actual auth implementation
+3. **Terminal Support** - Placeholder only
+4. **Session Persistence** - `session/load` doesn't restore actual conversation history
+
+### Implemented Features
+
+- **Real-time Streaming**: Implemented `session/update` notifications for progressive responses and text chunks
+- **Tool Call Visibility**: Reports tool executions as they happen with status updates
+- **Permission Handling**: Integrated with opencode's permission system, requests permissions via ACP client's `requestPermission` when tools require approval
 
 ### Future Enhancements
 
-- **Real-time Streaming**: Implement `session/update` notifications for progressive responses
-- **Tool Call Visibility**: Report tool executions as they happen
 - **Session Persistence**: Save and restore full conversation history
 - **Mode Support**: Implement different operational modes (ask, code, etc.)
-- **Enhanced Permissions**: More sophisticated permission handling
+- **Enhanced Permissions**: More sophisticated permission handling with granular controls
 - **Terminal Integration**: Full terminal support via opencode's bash tool
 
 ## Testing
