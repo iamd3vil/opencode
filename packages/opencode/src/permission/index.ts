@@ -88,6 +88,7 @@ export namespace Permission {
     acpConnection?: {
       connection: any
       sessionId: string
+      mode?: "ask" | "approve_all" | "read_only"
     }
   }) {
     const { pending, approved } = state()

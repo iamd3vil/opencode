@@ -186,8 +186,6 @@ export class OpenCodeAgent implements Agent {
       },
     })
 
-    return {
-      _meta: {},
-    }
+    return {}
   }
 }
